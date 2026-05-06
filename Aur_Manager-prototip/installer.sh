@@ -78,9 +78,10 @@ from pathlib import Path
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, 
                              QWidget, QLineEdit, QPushButton, QTabWidget, 
                              QTextEdit, QMessageBox, QProgressBar, QLabel,
-                             QGridLayout, QScrollArea, QFrame, QHBoxLayout)
-from PyQt5.QtCore import QThread, pyqtSignal, Qt
-from PyQt5.QtGui import QFont
+                             QGridLayout, QScrollArea, QFrame, QHBoxLayout,
+                             QSpacerItem, QSizePolicy)
+from PyQt5.QtCore import QThread, pyqtSignal, Qt, QSize
+from PyQt5.QtGui import QFont, QPalette, QColor
 
 CONFIG_PATH = Path.home() / ".config" / "aur-gui" / "config.json"
 
@@ -91,44 +92,59 @@ class PackageCard(QFrame):
         super().__init__(parent)
         self.package_name = package_name
         
-        self.setFrameStyle(QFrame.Box)
+        self.setFrameStyle(QFrame.NoFrame)
         self.setCursor(Qt.PointingHandCursor)
-        self.setMaximumHeight(100)
-        self.setMinimumWidth(250)
+        self.setMinimumWidth(280)
+        self.setMaximumWidth(350)
+        self.setMinimumHeight(110)
+        
+        # Daha ferah stil
         self.setStyleSheet("""
             QFrame {
-                background-color: #2a2e33;
-                border-radius: 8px;
-                border: 1px solid #3d4451;
-                margin: 5px;
+                background-color: #1e1e1e;
+                border-radius: 12px;
+                border: 1px solid #2d2d2d;
+                margin: 8px;
             }
             QFrame:hover {
-                background-color: #31363d;
-                border: 1px solid #5294e2;
+                background-color: #2a2a2a;
+                border: 1px solid #0d7377;
             }
         """)
         
         layout = QVBoxLayout()
+        layout.setSpacing(8)
+        layout.setContentsMargins(12, 10, 12, 10)
         self.setLayout(layout)
         
+        # Üst kısım - isim
         name_label = QLabel(f"📦 {package_name}")
-        name_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #5294e2;")
+        name_label.setStyleSheet("font-weight: bold; font-size: 13px; color: #4ecdc4;")
+        name_label.setWordWrap(True)
         layout.addWidget(name_label)
         
-        desc_label = QLabel(description[:80] + ("..." if len(description) > 80 else ""))
-        desc_label.setStyleSheet("color: #d0d4dc; font-size: 11px;")
+        # Açıklama
+        desc_text = description[:120] + ("..." if len(description) > 120 else "")
+        desc_label = QLabel(desc_text if desc_text else "Açıklama yok")
+        desc_label.setStyleSheet("color: #b0b0b0; font-size: 11px;")
         desc_label.setWordWrap(True)
         layout.addWidget(desc_label)
         
+        # Alt kısım - buton
         install_btn = QPushButton("📥 Kur")
+        install_btn.setCursor(Qt.PointingHandCursor)
         install_btn.setStyleSheet("""
             QPushButton {
-                background-color: #3daee9;
+                background-color: #0d7377;
                 border: none;
-                border-radius: 5px;
-                padding: 5px;
+                border-radius: 6px;
+                padding: 6px;
                 color: white;
                 font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #14a085;
             }
         """)
         install_btn.clicked.connect(lambda: self.clicked.emit(self.package_name))
@@ -171,6 +187,7 @@ class SearchThread(QThread):
         self.finished.emit()
 
 class InstallThread(QThread):
+    output = pyqtSignal(str)
     finished = pyqtSignal(bool, str)
     
     def __init__(self, helper, package):
@@ -180,16 +197,17 @@ class InstallThread(QThread):
     
     def run(self):
         try:
+            self.output.emit(f"🚀 {self.package} kuruluyor...\n")
             cmd = [self.helper, "-S", "--noconfirm", self.package]
-            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-            output = ""
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, 
+                                      stderr=subprocess.STDOUT, text=True)
             for line in process.stdout:
-                output += line
+                self.output.emit(line)
             process.wait()
             if process.returncode == 0:
-                self.finished.emit(True, f"✅ {self.package} kuruldu!")
+                self.finished.emit(True, f"✅ {self.package} başarıyla kuruldu!")
             else:
-                self.finished.emit(False, f"❌ {self.package} kurulamadı!")
+                self.finished.emit(False, f"❌ {self.package} kurulumu başarısız!")
         except Exception as e:
             self.finished.emit(False, f"❌ Hata: {str(e)}")
 
@@ -198,6 +216,7 @@ class AURManager(QMainWindow):
         super().__init__()
         self.load_config()
         self.init_ui()
+        self.apply_dark_theme()
         
     def load_config(self):
         try:
@@ -207,52 +226,162 @@ class AURManager(QMainWindow):
         except:
             self.aur_helper = "paru"
     
+    def apply_dark_theme(self):
+        # Koyu tema paleti
+        palette = QPalette()
+        palette.setColor(QPalette.Window, QColor(18, 18, 18))
+        palette.setColor(QPalette.WindowText, QColor(220, 220, 220))
+        palette.setColor(QPalette.Base, QColor(25, 25, 25))
+        palette.setColor(QPalette.AlternateBase, QColor(30, 30, 30))
+        palette.setColor(QPalette.Text, QColor(220, 220, 220))
+        palette.setColor(QPalette.Button, QColor(30, 30, 30))
+        palette.setColor(QPalette.ButtonText, QColor(220, 220, 220))
+        palette.setColor(QPalette.Highlight, QColor(13, 115, 119))
+        palette.setColor(QPalette.HighlightedText, QColor(255, 255, 255))
+        QApplication.setPalette(palette)
+        
+        # Genel stil
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #121212;
+            }
+            QTabWidget::pane {
+                border: 1px solid #2d2d2d;
+                border-radius: 8px;
+                background-color: #121212;
+            }
+            QTabBar::tab {
+                background-color: #1e1e1e;
+                padding: 8px 16px;
+                margin: 2px;
+                border-radius: 6px;
+                color: #b0b0b0;
+            }
+            QTabBar::tab:selected {
+                background-color: #0d7377;
+                color: white;
+            }
+            QLineEdit {
+                background-color: #1e1e1e;
+                border: 1px solid #2d2d2d;
+                border-radius: 8px;
+                padding: 10px;
+                color: #e0e0e0;
+                font-size: 12px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #0d7377;
+            }
+            QPushButton {
+                background-color: #0d7377;
+                border: none;
+                border-radius: 8px;
+                padding: 10px 20px;
+                color: white;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #14a085;
+            }
+            QPushButton:disabled {
+                background-color: #2d2d2d;
+                color: #666;
+            }
+            QTextEdit {
+                background-color: #1e1e1e;
+                border: 1px solid #2d2d2d;
+                border-radius: 8px;
+                color: #e0e0e0;
+                font-family: monospace;
+            }
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+            QProgressBar {
+                border: 1px solid #2d2d2d;
+                border-radius: 6px;
+                text-align: center;
+                color: white;
+            }
+            QProgressBar::chunk {
+                background-color: #0d7377;
+                border-radius: 5px;
+            }
+            QLabel {
+                color: #e0e0e0;
+            }
+        """)
+    
     def init_ui(self):
-        self.setWindowTitle(f"AUR Manager - {self.aur_helper}")
-        self.setGeometry(100, 100, 1000, 700)
+        self.setWindowTitle(f"🅰️ AUR Manager - {self.aur_helper}")
+        self.setGeometry(100, 100, 1100, 750)
         
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
         main_layout = QVBoxLayout()
+        main_layout.setSpacing(12)
+        main_layout.setContentsMargins(15, 15, 15, 15)
         central_widget.setLayout(main_layout)
         
+        # Başlık
+        title = QLabel("🅰️ AUR Package Manager")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #4ecdc4; padding: 10px;")
+        main_layout.addWidget(title)
+        
+        # Sekmeler
         tabs = QTabWidget()
+        tabs.setStyleSheet("QTabBar::tab { font-size: 12px; }")
         main_layout.addWidget(tabs)
         
-        # Arama sekmesi
+        # === SEKRME 1: ARAMA ===
         search_tab = QWidget()
         tabs.addTab(search_tab, "🔍 Paket Ara")
         
         search_layout = QVBoxLayout()
+        search_layout.setSpacing(12)
         search_tab.setLayout(search_layout)
         
-        # Arama kutusu
+        # Arama çubuğu
         search_frame = QHBoxLayout()
+        search_frame.setSpacing(10)
+        
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("Paket adı girin...")
+        self.search_box.setPlaceholderText("Paket adı girin... (örnek: google-chrome, firefox, vscode)")
         self.search_box.returnPressed.connect(self.search_packages)
         search_frame.addWidget(self.search_box)
         
         self.search_button = QPushButton("🔍 Ara")
+        self.search_button.setCursor(Qt.PointingHandCursor)
+        self.search_button.setFixedWidth(100)
         self.search_button.clicked.connect(self.search_packages)
         search_frame.addWidget(self.search_button)
+        
         search_layout.addLayout(search_frame)
         
         # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
+        self.progress_bar.setFixedHeight(8)
         search_layout.addWidget(self.progress_bar)
         
-        # Scroll alanı
+        # Grid alanı
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
         self.grid_widget = QWidget()
         self.grid_layout = QGridLayout(self.grid_widget)
+        self.grid_layout.setSpacing(8)
+        self.grid_layout.setContentsMargins(10, 10, 10, 10)
+        self.grid_layout.setAlignment(Qt.AlignTop)
+        
         self.scroll_area.setWidget(self.grid_widget)
         search_layout.addWidget(self.scroll_area)
         
-        # Kurulum sekmesi
+        # === SEKRME 2: KURULUM ÇIKTISI ===
         install_tab = QWidget()
         tabs.addTab(install_tab, "📦 Kurulum Çıktısı")
         
@@ -261,10 +390,18 @@ class AURManager(QMainWindow):
         
         self.output_text = QTextEdit()
         self.output_text.setReadOnly(True)
+        self.output_text.setFont(QFont("Monospace", 10))
         install_layout.addWidget(self.output_text)
         
+        clear_btn = QPushButton("🗑️ Temizle")
+        clear_btn.setCursor(Qt.PointingHandCursor)
+        clear_btn.setFixedWidth(100)
+        clear_btn.clicked.connect(lambda: self.output_text.clear())
+        install_layout.addWidget(clear_btn, alignment=Qt.AlignRight)
+        
         # Durum çubuğu
-        self.status_label = QLabel(f"Hazır - AUR Helper: {self.aur_helper}")
+        self.status_label = QLabel(f"✅ Hazır - AUR Helper: {self.aur_helper}")
+        self.status_label.setStyleSheet("color: #4ecdc4; padding: 5px;")
         main_layout.addWidget(self.status_label)
         
         self.search_thread = None
@@ -278,13 +415,14 @@ class AURManager(QMainWindow):
     def search_packages(self):
         query = self.search_box.text().strip()
         if not query:
+            QMessageBox.warning(self, "Uyarı", "Lütfen bir paket adı girin!")
             return
         
         self.clear_grid()
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)
         self.search_button.setEnabled(False)
-        self.status_label.setText(f"Aranıyor: {query}...")
+        self.status_label.setText(f"🔍 Aranıyor: {query}...")
         
         self.search_thread = SearchThread(self.aur_helper, query)
         self.search_thread.result_ready.connect(self.display_results)
@@ -294,47 +432,75 @@ class AURManager(QMainWindow):
     def display_results(self, packages):
         self.clear_grid()
         
-        if not packages:
-            label = QLabel("Sonuç bulunamadı.")
+        if not packages or (len(packages) == 1 and packages[0][0].startswith("Hata")):
+            label = QLabel("❌ Sonuç bulunamadı.")
             label.setAlignment(Qt.AlignCenter)
-            self.grid_layout.addWidget(label, 0, 0)
+            label.setStyleSheet("font-size: 16px; color: #888; padding: 40px;")
+            self.grid_layout.addWidget(label, 0, 0, 1, 3)
             return
         
-        row, col = 0, 0
+        row = 0
+        col = 0
+        max_cols = 3
+        
         for pkg_name, pkg_desc in packages:
-            card = PackageCard(pkg_name, pkg_desc or "Açıklama yok")
+            card = PackageCard(pkg_name, pkg_desc if pkg_desc else "Açıklama yok")
             card.clicked.connect(self.install_package)
             self.grid_layout.addWidget(card, row, col)
+            
             col += 1
-            if col >= 3:
+            if col >= max_cols:
                 col = 0
                 row += 1
+        
+        # Esnek alan
+        self.grid_layout.addItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding), row+1, 0)
     
     def search_finished(self):
         self.progress_bar.setVisible(False)
         self.search_button.setEnabled(True)
-        self.status_label.setText(f"✅ {self.grid_layout.count()} sonuç bulundu")
+        count = self.grid_layout.count()
+        self.status_label.setText(f"✅ {count} sonuç bulundu")
     
     def install_package(self, package_name):
-        reply = QMessageBox.question(self, "Onay", f"{package_name} kurulsun mu?",
-                                    QMessageBox.Yes | QMessageBox.No)
+        reply = QMessageBox.question(self, "Kurulum Onayı", 
+                                    f"📦 {package_name}\n\nPaketi kurmak istediğinize emin misiniz?",
+                                    QMessageBox.Yes | QMessageBox.No,
+                                    QMessageBox.No)
+        
         if reply == QMessageBox.Yes:
             self.output_text.clear()
-            self.status_label.setText(f"Kuruluyor: {package_name}...")
+            self.status_label.setText(f"⚙️ Kuruluyor: {package_name}...")
+            self.tab_widget = self.centralWidget().layout().itemAt(1).widget()
+            self.tab_widget.setCurrentIndex(1)
             
             self.install_thread = InstallThread(self.aur_helper, package_name)
+            self.install_thread.output.connect(self.update_output)
             self.install_thread.finished.connect(self.install_finished)
             self.install_thread.start()
     
+    def update_output(self, text):
+        self.output_text.append(text)
+        self.output_text.ensureCursorVisible()
+        QApplication.processEvents()
+    
     def install_finished(self, success, message):
         self.status_label.setText(message)
-        self.output_text.append(message)
-        QMessageBox.information(self, "Sonuç", message)
+        self.output_text.append(f"\n{message}")
+        
+        msg = QMessageBox()
+        msg.setWindowTitle("Kurulum Sonucu")
+        msg.setText(message)
+        msg.setIcon(QMessageBox.Information if success else QMessageBox.Critical)
+        msg.exec_()
 
 def main():
     app = QApplication(sys.argv)
+    app.setApplicationName("AUR Manager")
+    
     window = AURManager()
     window.show()
+    
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
