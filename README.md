@@ -16,7 +16,6 @@ Arch Linux için basit AUR grafik arayüzü
     🖥️ Masaüstü entegrasyonu
 
 📦 Kurulum
-bash
 
 git clone https://github.com/ddddfffffsgggsgs3232e/Aur_Manager-prototype
 cd Aur-Manager-prototype
@@ -38,9 +37,10 @@ aur-manager/
 ├── installer.sh        # Otomatik kurulum
 ├── launcher.sh         # Başlatıcı
 └── complete_uninstall.sh # Tam kaldırma
+
 // ayrıca otomatik olarak .desktop dosyası oluşturuyor.
+
 🗑️ Kaldırma
-bash
 
 ./complete_uninstall.sh
 
